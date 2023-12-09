@@ -1,210 +1,47 @@
-# Data and Code for IJCAI'21 paper - SafeDrug
+# Official implementation of ALGNet: Attention Light Graph Memory Network for Medical Recommendation System
 
-### YOU NEED TO KNOW FIRST!
-- The results using the `archived` branch (results of the paper)：
-    ```
-    DDI: 0.0589 (0.0005) Ja: 0.5213 (0.0030) F1: 0.6768 (0.0027) PRAUC: 0.7647 (0.0025)
-    ```
-    - Check here https://github.com/ycq091044/SafeDrug/tree/archived for reproducing the paper results.
+This is the implementation for paper ALGNet: Attention Light Graph Memory Network for Medical Recommendation System, SOICT 2023.
 
-- The results using this `master` branch (@J-Zhangg obtained this in issue #23, thanks): 
-    ```
-    # When the learning rate is set to 5e-4:
-    DDI: 0.0632 (0.0003) Ja: 0.5114 (0.0026) F1: 0.6676 (0.0023) PRAUC: 0.7649 (0.0028)
+<b>Author:</b> Minh-Van Nguyen, Duy-Thinh Nguyen, Quoc-Huy Trinh, Bac Le
 
-    # When the learning rate is set to 2e-4:
-    DDI: 0.0607 (0.0005) Ja: 0.5089 (0.0022) F1: 0.6659 (0.0019) PRAUC: 0.7632 (0.0022)
-    ```
+## Installation
 
-**[Implementation difference]** Here are two main differences:
-
- 1. As we mentioned below, the main difference of two branches is in how we get the drug SMILES string (the paper crawl methods misses a lot of molecules, while the current branch uses drugbank method, which gives more comprehensive sets). 
- 2. The data processing scripts are also a bit difference, and thus output data statistics differ from the ones reported in the paper.
-
-**[which branch to use?]** General guidance:
- 1. This `master` branch contains more descriptions (to learn how to use our codes), and the folder structures are very similar to `archived` branch.
- 2. Use the `archived` branch to reproduce the results in the paper.
-
-### Folder Specification
-- ```data/```
-    - **procesing.py** our data preprocessing file.
-    - ```Input/``` (extracted from external resources)
-        - **PRESCRIPTIONS.csv**: the prescription file from MIMIC-III raw dataset
-        - **DIAGNOSES_ICD.csv**: the diagnosis file from MIMIC-III raw dataset
-        - **PROCEDURES_ICD.csv**: the procedure file from MIMIC-III raw dataset
-        - **RXCUI2atc4.csv**: this is a NDC-RXCUI-ATC4 mapping file, and we only need the RXCUI to ATC4 mapping. This file is obtained from https://github.com/sjy1203/GAMENet, where the name is called ndc2atc_level4.csv.
-        - **drug-atc.csv**: this is a CID-ATC file, which gives the mapping from CID code to detailed ATC code (we will use the prefix of the ATC code latter for aggregation). This file is obtained from https://github.com/sjy1203/GAMENet.
-        - **ndc2RXCUI.txt**: NDC to RXCUI mapping file. This file is obtained from https://github.com/sjy1203/GAMENet, where the name is called ndc2rxnorm_mapping.csv.
-        - **drugbank_drugs_info.csv**: drug information table downloaded from drugbank here https://drive.google.com/file/d/1EzIlVeiIR6LFtrBnhzAth4fJt6H_ljxk/view?usp=sharing, which is used to map drug name to drug SMILES string.
-        - **drug-DDI.csv**: this a large file, containing the drug DDI information, coded by CID. The file could be downloaded from https://drive.google.com/file/d/1mnPc0O0ztz0fkv3HF-dpmBb8PLWsEoDz/view?usp=sharing
-    - ```Output/```
-        - **atc3toSMILES.pkl**: drug ID (we use ATC-3 level code to represent drug ID) to drug SMILES string dict
-        - **ddi_A_final.pkl**: ddi adjacency matrix
-        - **ddi_matrix_H.pkl**: H mask structure (This file is created by **ddi_mask_H.py**)
-        - **ehr_adj_final.pkl****: used in GAMENet baseline (if two drugs appear in one set, then they are connected)
-        - **records_final.pkl**: The final diagnosis-procedure-medication EHR records of each patient, used for train/val/test split (**NOTE: we only provide the first 100 entries as examples here. We cannot distribute the whole MIMIC-III data https://physionet.org/content/mimiciii/1.4/, then please download the dataset by yourself and use our processing code to obtain the full records.**).
-        - **voc_final.pkl**: diag/prod/med index to code dictionary
-- ```src/```
-    - **SafeDrug.py**: our model
-    - baselines:
-        - **GAMENet.py**
-        - **DMNC.py**: there are some issues for the latest dnc package, please refer to the original DMNC repo https://github.com/thaihungle/DMNC
-        - **Leap.py**
-        - **Retain.py**
-        - **ECC.py**
-        - **LR.py**
-    - setting file
-        - **model.py**
-        - **util.py**
-        - **layer.py**
-
-> Note that we previously use **./data/get_SMILES.py** for getting SMILES strings from drugbank. However, due to the web structure change of drugbank, this crawler is not used in the current pipeline. Now, we are using **drugbank_drugs_info.csv** to obtain the SMILES string for each ATC3 code, thus, the data statistics differ a bit from the paper. The current statistics are shown below:
+To install all necessary packages, install via ```requirements.txt``` file with this command:
 
 ```
-#patients  6350
-#clinical events  15032
-#diagnosis  1958
-#med  112
-#procedure 1430
-#avg of diagnoses  10.5089143161256
-#avg of medicines  11.647751463544438
-#avg of procedures  3.8436668440659925
-#avg of vists  2.367244094488189
-#max of diagnoses  128
-#max of medicines  64
-#max of procedures  50
-#max of visit  29
+pip install -r requirements.txt
 ```
 
-### High-level Clarifications on How to Map ATC Code to SMILES
-- The original **PRESCRIPTIONS.csv** file provides ```ndc->drugname``` mapping
-- Use the **ndc2RXCUI.txt** file for ```ndc->RXCUI``` mapping (now we have ```RXCUI->drugname```)
-  - in https://github.com/ycq091044/SafeDrug/blob/main/data/processing.py#70
-- Use the **RXCUI2atc4.csv** file for ```RXCUI->atc4``` mapping, then change ```atc4``` to ```atc3``` (now we have ```atc3->drugname```)
-  - in https://github.com/ycq091044/SafeDrug/blob/main/data/processing.py#80
-- Use the **drugbank_drugs_info.csv** file for ```drug->SMILES``` mapping (now we have ```atc3->SMILES```)
-  - in https://github.com/ycq091044/SafeDrug/blob/main/data/processing.py#48
-- ```atc3``` is a coarse-granular drug classification, one ```atc3``` code contains multiple SMILES strings.
-> ALSO, check out this tool for easy medication code mapping https://github.com/ycq091044/MedCode.
+After running this script, all packages will be installed.
 
+## Training
 
-### Step 1: Package Dependency
+For training, you have to change dir to ```./src/```. Then you can run file ```ALGNet.py``` for the training via this command:
 
-- first, install the rdkit conda environment
-```python
-conda create -c conda-forge -n SafeDrug  rdkit
-conda activate SafeDrug
-
-# can also use the following in your current env
-pip install rdkit-pypi
+```
+python ALGNet.py
 ```
 
-- then, in SafeDrug environment, install the following package
-```python
-pip install scikit-learn, dill, dnc
+## Acknowledgement
+Thanks [GAMENET](https://github.com/sjy1203/GAMENet) for the initial pipeline.
+
+## Citation 
 ```
-Note that torch setup may vary according to GPU hardware. Generally, run the following
-```python
-pip install torch
-```
-If you are using RTX 3090, then plase use the following, which is the right way to make torch work.
-```python
-python3 -m pip install --user torch==1.8.0+cu111 torchvision==0.9.0+cu111 torchaudio==0.8.0 -f https://download.pytorch.org/whl/torch_stable.html
-```
-
-- Finally, install other packages if necessary
-```python
-pip install [xxx] # any required package if necessary, maybe do not specify the version, the packages should be compatible with rdkit
-```
-
-Here is a list of reference versions for all package
-
-```shell
-pandas: 1.3.0
-dill: 0.3.4
-torch: 1.8.0+cu111
-rdkit: 2021.03.4
-scikit-learn: 0.24.2
-numpy: 1.21.1
-```
-
-Let us know any of the package dependency issue. Please pay special attention to pandas, some report that a high version of pandas would raise error for dill loading.
-
-
-### Step 2: Data Processing
-
-- Go to https://physionet.org/content/mimiciii/1.4/ to download the MIMIC-III dataset (You may need to get the certificate)
-
-  ```python
-  cd ./data
-  wget -r -N -c -np --user [account] --ask-password https://physionet.org/files/mimiciii/1.4/
-  ```
-
-- go into the folder and unzip three main files
-
-  ```python
-  cd ./physionet.org/files/mimiciii/1.4
-  gzip -d PROCEDURES_ICD.csv.gz # procedure information
-  gzip -d PRESCRIPTIONS.csv.gz  # prescription information
-  gzip -d DIAGNOSES_ICD.csv.gz  # diagnosis information
-  ```
-
-- download the DDI file and move it to the data folder
-  download https://drive.google.com/file/d/1mnPc0O0ztz0fkv3HF-dpmBb8PLWsEoDz/view?usp=sharing
-  ```python
-  mv drug-DDI.csv ./data
-  ```
-
-- processing the data to get a complete records_final.pkl
-
-  ```python
-  cd ./data
-  vim processing.py
-  
-  # line 323-325
-  # med_file = './physionet.org/files/mimiciii/1.4/PRESCRIPTIONS.csv'
-  # diag_file = './physionet.org/files/mimiciii/1.4/DIAGNOSES_ICD.csv'
-  # procedure_file = './physionet.org/files/mimiciii/1.4/PROCEDURES_ICD.csv'
-  
-  python processing.py
-  ```
-
-
-### Step 3: run the code
-
-```python
-python SafeDrug.py
-```
-
-here is the argument:
-
-    usage: SafeDrug.py [-h] [--Test] [--model_name MODEL_NAME]
-                   [--resume_path RESUME_PATH] [--lr LR]
-                   [--target_ddi TARGET_DDI] [--kp KP] [--dim DIM]
-    
-    optional arguments:
-      -h, --help            show this help message and exit
-      --Test                test mode
-      --model_name MODEL_NAME
-                            model name
-      --resume_path RESUME_PATH
-                            resume path
-      --lr LR               learning rate
-      --target_ddi TARGET_DDI
-                            target ddi
-      --kp KP               coefficient of P signal
-      --dim DIM             dimension
-
-
-### Citation
-```bibtex
-@inproceedings{yang2021safedrug,
-    title = {SafeDrug: Dual Molecular Graph Encoders for Safe Drug Recommendations},
-    author = {Yang, Chaoqi and Xiao, Cao and Ma, Fenglong and Glass, Lucas and Sun, Jimeng},
-    booktitle = {Proceedings of the Thirtieth International Joint Conference on
-               Artificial Intelligence, {IJCAI} 2021},
-    year = {2021}
+@inproceedings{10.1145/3628797.3628983,
+author = {Nguyen, Minh-Van and Nguyen, Duy-Thinh and Trinh, Quoc-Huy and Le, Bac},
+title = {ALGNet: Attention Light Graph Memory Network for Medical Recommendation System},
+year = {2023},
+isbn = {9798400708916},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3628797.3628983},
+doi = {10.1145/3628797.3628983},
+abstract = {Medication recommendation is a vital task for improving patient care and reducing adverse events. However, existing methods often fail to capture the complex and dynamic relationships among patient medical records, drug efficacy and safety, and drug-drug interactions (DDI). In this paper, we propose ALGNet, a novel model that leverages light graph convolutional networks (LGCN) and augmentation memory networks (AMN) to enhance medication recommendation. LGCN can efficiently encode the patient records and the DDI graph into low-dimensional embeddings, while AMN can augment the patient representation with external knowledge from a memory module. We evaluate our model on the MIMIC-III dataset and show that it outperforms several baselines in terms of recommendation accuracy and DDI avoidance. We also conduct an ablation study to analyze the effects of different components of our model. Our results demonstrate that ALGNet can achieve superior performance with less computation and more interpretability.},
+booktitle = {Proceedings of the 12th International Symposium on Information and Communication Technology},
+pages = {570–577},
+numpages = {8},
+keywords = {Electronic health record system, Memory Network., Light Graph Convolutional Network, Medical Recommendation},
+location = {<conf-loc>, <city>Ho Chi Minh</city>, <country>Vietnam</country>, </conf-loc>},
+series = {SOICT '23}
 }
 ```
-
-Welcome to contact me <chaoqiy2@illinois.edu> for any question. Partial credit to https://github.com/sjy1203/GAMENet.
